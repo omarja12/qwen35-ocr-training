@@ -365,61 +365,13 @@ no setup step beyond the install.
 
 ---
 
-## Using spec-kit in this project
+## Design documents
 
-Spec-kit is installed and set up here. Two different things, with two different scopes:
+- `specs/001-ocr-eval-harness/` - the specification, plan and contracts of the evaluation harness.
+- `.specify/memory/constitution.md` - the project rules the code and docs refer to as
+  "constitution I-VI" (measurement before claims, reproducibility, air-gapped by
+  construction, fail loudly, software-only image, specify software not operations).
 
-**The `specify` CLI is global and permanent.** It lives at `C:\Users\HP\.local\bin\specify.exe`,
-which is on your persistent user PATH. It works in any terminal, after any reboot. Nothing to
-reinstall.
-
-**The `/speckit-*` skills are scoped to THIS folder.** They live in `.claude/skills/` here, so
-they only appear when Claude Code's working directory is `qwen35-ocr-training`. Open Claude
-Code anywhere else and they will not be listed.
-
-### To use them in a future session
-
-Either open the folder in VS Code (**File -> Open Folder ->** `qwen35-ocr-training`) and start
-Claude Code there, or from a terminal:
-
-```bash
-cd ~/Documents/ocr_followup/qwen35-ocr-training
-claude
-```
-
-Then the skills are available:
-
-| Skill | What it does |
-|---|---|
-| `/speckit-constitution` | project principles (run once) |
-| `/speckit-specify` | write the spec |
-| `/speckit-clarify` | structured questions to remove ambiguity - run before plan |
-| `/speckit-plan` | technical implementation plan |
-| `/speckit-tasks` | actionable task list |
-| `/speckit-implement` | build it |
-| `/speckit-analyze` | consistency check across spec/plan/tasks |
-| `/speckit-checklist` | quality checklist for the requirements |
-
-### To add spec-kit to a different project later
-
-```bash
-specify init <new-project-name> --integration claude
-# or, inside an existing folder:
-specify init --here --integration claude
-```
-
-### To update spec-kit
-
-```bash
-specify self upgrade          # or: uv tool upgrade specify-cli
-```
-
-### What to use it for here
-
-Use it for software that does not exist yet and has real requirements - the **evaluation
-harness** (CER/WER, Arabic normalisation policy, gold set, hallucination tests, per-font
-breakdown), the **dataset preparation pipeline**, the **dataset validator**.
-
-Do not use it for operational steps. Connecting to VM01, `oc get pods`, `podman build` and
-staging the model are commands to run, not features to specify - those live in
-`../COMMANDS.txt`.
+These were written with [spec-kit](https://github.com/github/spec-kit). Its Claude Code
+commands (`/speckit-*`) are not kept in the repository; to use them again, run
+`specify init --here --integration claude` in a checkout.

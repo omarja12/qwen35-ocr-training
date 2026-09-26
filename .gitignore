@@ -28,3 +28,6 @@ local_mechanism_demo/data/
 local_mechanism_demo/sample/
 # ...but the training logs are the proof: keep them
 !local_mechanism_demo/logs/*.log
+
+# Claude Code per-user settings
+.claude/settings.local.json
