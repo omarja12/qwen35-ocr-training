@@ -29,7 +29,8 @@ COPY scripts/ /opt/ocr-training/scripts/
 COPY src/     /opt/ocr-training/src/
 COPY configs/ /opt/ocr-training/configs/
 
-ENV PYTHONPATH=/opt/ocr-training \
+# src/ holds the ocr_eval and ocr_train packages: `python -m ocr_train.prepare` etc.
+ENV PYTHONPATH=/opt/ocr-training/src:/opt/ocr-training \
     HF_HOME=/workspace/cache/huggingface \
     TRANSFORMERS_CACHE=/workspace/cache/huggingface \
     TORCH_HOME=/workspace/cache/torch \

@@ -1,0 +1,44 @@
+# Step 2 (CPU): stream the 412 dataset shards from MinIO, extract and verify every
+# page, write train.jsonl / val.jsonl / eval/manifest.jsonl to the workspace.
+#
+#   oc apply -f deploy/openshift/prepare-job.yaml && oc logs -f job/ocr-prepare
+#
+# Resumable: finished shards are recorded under prepared/parts/, so a retry only
+# redoes the shards that were in flight. Check prepared/prepare_report.json when
+# it finishes - it lists every dropped sample and why.
+#
+# --image-root must be where the TRAIN Job mounts the same directory: the paths
+# written into train.jsonl are absolute.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ocr-prepare
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: prepare
+          image: REPLACE_REGISTRY/REPLACE_ORG/qwen35-ocr-train:REPLACE_TAG
+          command: ["/bin/bash", "-c"]
+          args:
+            - >-
+              python -m ocr_train.prepare
+              --source s3://REPLACE_DATA_BUCKET/ocr_data
+              --out /workspace/data/prepared
+              --image-root /workspace/data/prepared
+              --holdout-groups 103
+              --workers 16
+          envFrom:
+            - secretRef:
+                name: minio-credentials
+          resources:
+            requests: {cpu: "16", memory: 48Gi}
+            limits: {cpu: "16", memory: 48Gi}
+          volumeMounts:
+            - {name: workspace, mountPath: /workspace}
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: ocr-train-workspace

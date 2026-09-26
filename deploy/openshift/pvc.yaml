@@ -1,0 +1,25 @@
+# One workspace volume for every step: staged weights, extracted pages,
+# checkpoints, predictions. Mounted at /workspace in every Job.
+#
+# Size (measured / computed, Sep 2026):
+#   extracted pages   ~430 GB   (4.1M PNG/JPEG; the tars themselves are never stored)
+#   base model         ~19 GB
+#   checkpoints       ~130 GB each with optimizer state (9.4B params: bf16 weights
+#                     + fp32 master + Adam m, v); SAVE_TOTAL_LIMIT=2 keeps two, and a
+#                     third exists briefly while the next one is written
+#   datasets cache, predictions, logs   ~20 GB
+#   => ~870 GB peak. 1.5 Ti leaves room for a second run's checkpoints.
+#
+# ReadWriteMany (CephFS or similar) lets the CPU prepare Job and the GPU train Job
+# land on different nodes. With only ReadWriteOnce block storage, the Jobs must
+# run one after another on the same node (add a nodeSelector to each).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ocr-train-workspace
+spec:
+  accessModes: ["ReadWriteMany"]
+  storageClassName: REPLACE_WITH_STORAGE_CLASS
+  resources:
+    requests:
+      storage: 1500Gi

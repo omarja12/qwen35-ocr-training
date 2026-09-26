@@ -9,9 +9,14 @@
 # Leave torch/torchvision unlisted if the base image already ships a CUDA
 # build of them. Reinstalling torch on top of a vendor image is a common way
 # to end up with a CUDA/driver mismatch that only fails at run time.
-transformers
-ms-swift
-qwen_vl_utils
+#
+# The three pins below are the versions scripts/train.sh and ocr_train were
+# verified against (CPU end-to-end run, Sep 2026). ms-swift 4.5.3 is the first
+# release checked to register Qwen3.5-9B-Base (model_type/template qwen3_5); it
+# resolves transformers to 5.16.1, and Qwen3.5 padding_free needs >= 5.9.
+transformers==5.16.1
+ms-swift==4.5.3
+qwen_vl_utils>=0.0.14
 peft
 deepspeed
 accelerate
@@ -35,6 +40,12 @@ jiwer          # CER / WER
 # --- optional acceleration -------------------------------------------------
 # Add ONLY after the plain image trains successfully. These compile against
 # CUDA and are the most common cause of air-gapped build failures.
-# liger-kernel
+# For Qwen3.5 they matter more than usual: 24 of its 32 layers are Gated
+# DeltaNet, which without flash-linear-attention runs a much slower pure-PyTorch
+# fallback. Measure the plain image's step time first, then add them. flash-linear-attention itself is Triton (no
+# compile at install); causal-conv1d and flash-attn are the ones that compile.
+# preflight.py reports which are present.
 # flash-linear-attention
 # causal-conv1d
+# flash-attn
+# liger-kernel

@@ -1,0 +1,61 @@
+# Step 3 (4x H200): full fine-tune with ms-swift via scripts/train.sh.
+#
+#   oc apply -f deploy/openshift/train-job.yaml && oc logs -f job/qwen35-9b-ocr-v001
+#
+# train.sh runs preflight.py first (imports, 4 GPUs, offline flags, paths) and
+# stops before touching the GPUs if anything is wrong.
+#
+# Evicted or crashed? The Job retries (backoffLimit) and train.sh resumes from
+# the newest complete checkpoint in OUTPUT_DIR - weights, optimizer, scheduler
+# and data position. Use a NEW OUTPUT_DIR (and Job name) for a new experiment.
+#
+# Smoke run first: set MAX_STEPS=50 and SAVE_STEPS=25 with a throwaway
+# OUTPUT_DIR, confirm loss falls, a checkpoint saves, and a resume works; read the
+# step time from the log to size the full run.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: qwen35-9b-ocr-v001
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: train
+          image: REPLACE_REGISTRY/REPLACE_ORG/qwen35-ocr-train:REPLACE_TAG
+          command: ["/bin/bash", "-c"]
+          args:
+            - mkdir -p /workspace/tmp /workspace/cache && exec /opt/ocr-training/scripts/train.sh
+          env:
+            - {name: MODEL_PATH, value: /workspace/models/Qwen3.5-9B-Base}
+            - {name: DATA_DIR, value: /workspace/data/prepared}
+            - {name: OUTPUT_DIR, value: /workspace/checkpoints/qwen35-9b-ocr-v001}
+            # The digest `build_and_push.sh` printed. Recorded in run_starts.jsonl.
+            - {name: IMAGE_REF, value: "REPLACE_REGISTRY/REPLACE_ORG/qwen35-ocr-train@sha256:REPLACE_DIGEST"}
+            - {name: NPROC_PER_NODE, value: "4"}
+            - {name: IMAGE_MAX_TOKEN_NUM, value: "1280"}
+            - {name: DEEPSPEED, value: zero2}
+            - {name: PER_DEVICE_BATCH, value: "4"}
+            - {name: GRAD_ACCUM, value: "8"}
+            - {name: LR, value: "1e-5"}
+            - {name: EPOCHS, value: "1"}
+            - {name: SAVE_STEPS, value: "1000"}
+            - {name: SAVE_TOTAL_LIMIT, value: "2"}
+            # - {name: MAX_STEPS, value: "50"}      # smoke run
+            - {name: HF_HUB_OFFLINE, value: "1"}
+            - {name: TRANSFORMERS_OFFLINE, value: "1"}
+            - {name: HF_DATASETS_CACHE, value: /workspace/cache/datasets}
+            - {name: MODELSCOPE_CACHE, value: /workspace/cache/modelscope}
+          resources:
+            requests: {cpu: "32", memory: 256Gi, nvidia.com/gpu: "4"}
+            limits: {cpu: "32", memory: 256Gi, nvidia.com/gpu: "4"}
+          volumeMounts:
+            - {name: workspace, mountPath: /workspace}
+            - {name: dshm, mountPath: /dev/shm}   # NCCL and dataloader workers need more than the 64 MB default
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: ocr-train-workspace
+        - name: dshm
+          emptyDir: {medium: Memory, sizeLimit: 64Gi}

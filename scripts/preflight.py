@@ -10,9 +10,19 @@ import os
 import sys
 
 MODULES = [
-    "torch", "torchvision", "transformers", "swift", "peft",
-    "datasets", "webdataset", "boto3", "PIL", "numpy",
+    "torch", "torchvision", "transformers", "swift", "peft", "deepspeed",
+    "qwen_vl_utils", "datasets", "webdataset", "boto3", "PIL", "numpy",
 ]
+
+# Qwen3.5 runs 24 of its 32 layers as linear attention (Gated DeltaNet). Without
+# these kernels transformers falls back to a pure-PyTorch path that trains but is
+# several times slower. Reported, not required: the constitution keeps them out
+# until the plain image has trained (principle III).
+OPTIONAL_KERNELS = {
+    "fla": "flash-linear-attention (Gated DeltaNet kernels)",
+    "causal_conv1d": "causal-conv1d (DeltaNet short convolution)",
+    "flash_attn": "flash-attn (needed for --padding_free / --packing)",
+}
 
 failures: list[str] = []
 
@@ -31,6 +41,16 @@ def check_imports() -> None:
             check(name, True, getattr(mod, "__version__", ""))
         except Exception as exc:                       # noqa: BLE001
             check(name, False, f"{type(exc).__name__}: {exc}")
+
+
+def report_kernels() -> None:
+    print("\n== optional kernels (information only) ==")
+    for name, what in OPTIONAL_KERNELS.items():
+        try:
+            importlib.import_module(name)
+            print(f"  [present] {what}")
+        except Exception:                              # noqa: BLE001
+            print(f"  [absent]  {what}")
 
 
 def check_gpus(expected: int) -> None:
@@ -68,6 +88,7 @@ def main() -> int:
     args = ap.parse_args()
 
     check_imports()
+    report_kernels()
     if not args.imports_only:
         check_gpus(args.gpus)
         check_env()

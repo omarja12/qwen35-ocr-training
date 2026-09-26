@@ -1,0 +1,40 @@
+# Step 1 (CPU): copy Qwen3.5-9B-Base from MinIO to the workspace volume, checking
+# every file's SHA-256 against the hash recorded when it was mirrored.
+#
+#   oc apply -f deploy/openshift/stage-model-job.yaml && oc logs -f job/ocr-stage-model
+#
+# Replace every REPLACE_* value. Credentials come from the minio-credentials
+# Secret (see docs/TRAINING.md) and never appear in this file.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ocr-stage-model
+spec:
+  backoffLimit: 2          # a retry skips files already verified
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: stage
+          image: REPLACE_REGISTRY/REPLACE_ORG/qwen35-ocr-train:REPLACE_TAG
+          command: ["/bin/bash", "-c"]
+          args:
+            - >-
+              python /opt/ocr-training/scripts/object_store.py s3-to-dir
+              --src s3://REPLACE_MODEL_BUCKET/Qwen3.5-9B-Base
+              --dest /workspace/models/Qwen3.5-9B-Base
+          envFrom:
+            - secretRef:
+                name: minio-credentials   # AWS_ENDPOINT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+          # env:                          # internal CA for MinIO, if it has one
+          #   - name: AWS_CA_BUNDLE
+          #     value: /etc/minio-ca/ca.crt
+          resources:
+            requests: {cpu: "4", memory: 8Gi}
+            limits: {cpu: "4", memory: 8Gi}
+          volumeMounts:
+            - {name: workspace, mountPath: /workspace}
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: ocr-train-workspace

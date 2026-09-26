@@ -53,6 +53,22 @@ python /opt/ocr-training/scripts/preflight.py --gpus 1 # a single-GPU look
 
 ---
 
+## Training
+
+The full fine-tune of Qwen3.5-9B-Base on the ~4.1M-page `OCR-Data/ocr_data`
+dataset, from Hugging Face to a scored checkpoint, is in
+[`docs/TRAINING.md`](docs/TRAINING.md). The pieces:
+
+| | |
+|---|---|
+| `scripts/object_store.py` | Hugging Face -> MinIO -> PVC, SHA-256 verified end to end |
+| `python -m ocr_train.prepare` | tar shards -> ms-swift `train.jsonl` / `val.jsonl` + an `ocr-eval` test corpus with `[UNREADABLE]` probes |
+| `scripts/train.sh` | `swift sft` full fine-tune on 4 GPUs, restart-safe |
+| `python -m ocr_train.predict` | a checkpoint's transcriptions, in the form `ocr-eval score` reads |
+| `deploy/openshift/` | one Job per step, plus the workspace PVC |
+
+---
+
 ## Evaluating a checkpoint
 
 The evaluation harness (`ocr-eval`) scores predictions that already exist on

@@ -1,0 +1,61 @@
+# Step 4 (4x H200): transcribe the held-out corpus with one model, then score it.
+#
+#   oc apply -f deploy/openshift/predict-job.yaml && oc logs -f job/ocr-predict-v001-step32000
+#
+# Run it twice before trusting a number: once with MODEL = the untouched base
+# model (the baseline), once with MODEL = a checkpoint. Then, on any CPU machine:
+#   ocr-eval compare --baseline runs/base --candidate runs/v001-step32000
+#
+# One process per GPU, each taking every 4th page; pages already written are
+# skipped, so a retried Job continues where it stopped.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ocr-predict-v001-step32000
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: predict
+          image: REPLACE_REGISTRY/REPLACE_ORG/qwen35-ocr-train:REPLACE_TAG
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              mkdir -p /workspace/tmp
+              pids=()
+              for i in 0 1 2 3; do
+                CUDA_VISIBLE_DEVICES=$i python -m ocr_train.predict \
+                  --model "$MODEL" --manifest "$DATA/eval/manifest.jsonl" --corpus-root "$DATA" \
+                  --out "/workspace/predictions/$NAME" --num-shards 4 --shard-index $i \
+                  --image-max-tokens 1280 > "/workspace/tmp/predict-$NAME-$i.log" 2>&1 &
+                pids+=($!)
+              done
+              failed=0
+              for i in 0 1 2 3; do
+                wait "${pids[$i]}" || { echo "shard $i failed:"; tail -50 "/workspace/tmp/predict-$NAME-$i.log"; failed=1; }
+              done
+              [ "$failed" = 0 ]
+              python -m ocr_eval score --manifest "$DATA/eval/manifest.jsonl" --corpus-root "$DATA" \
+                --predictions "/workspace/predictions/$NAME" --model-version "$NAME" --out "/workspace/runs/$NAME"
+          env:
+            - {name: MODEL, value: /workspace/checkpoints/qwen35-9b-ocr-v001/checkpoint-32000}
+            - {name: NAME, value: qwen35-9b-ocr-v001-step32000}
+            - {name: DATA, value: /workspace/data/prepared}
+            - {name: IMAGE_REF, value: "REPLACE_REGISTRY/REPLACE_ORG/qwen35-ocr-train@sha256:REPLACE_DIGEST"}
+            - {name: HF_HUB_OFFLINE, value: "1"}
+            - {name: TRANSFORMERS_OFFLINE, value: "1"}
+          resources:
+            requests: {cpu: "16", memory: 128Gi, nvidia.com/gpu: "4"}
+            limits: {cpu: "16", memory: 128Gi, nvidia.com/gpu: "4"}
+          volumeMounts:
+            - {name: workspace, mountPath: /workspace}
+            - {name: dshm, mountPath: /dev/shm}
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: ocr-train-workspace
+        - name: dshm
+          emptyDir: {medium: Memory, sizeLimit: 16Gi}
