@@ -1,0 +1,30 @@
+tmp/
+*.log
+.env
+credentials*
+secrets*
+__pycache__/
+.ipynb_checkpoints/
+.vscode/
+output/
+checkpoints/
+
+# Python build and test artifacts
+*.pyc
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+
+# Evaluation run directories. Generated artifacts are never committed
+# (constitution V); the only committed inputs are tests/fixtures/ and the
+# pinned expectations in tests/golden/expected/.
+runs/
+
+# Pages of the gated OCR-Data/ocr_data dataset: fetched locally, never committed
+local_mechanism_demo/data/
+local_mechanism_demo/sample/
+# ...but the training logs are the proof: keep them
+!local_mechanism_demo/logs/*.log

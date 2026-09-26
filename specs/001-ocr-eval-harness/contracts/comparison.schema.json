@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ocr-eval/contracts/comparison.schema.json",
+  "title": "Comparison",
+  "description": "Output of `ocr-eval compare`. Turns two runs into a decision (FR-008, SC-006). A comparison only exists when the two runs are commensurable on all four counts: same policy_version, same corpus_manifest_digest, same split set, same page set. Otherwise the command exits 3 and writes nothing.",
+  "type": "object",
+  "$defs": {
+    "metricDelta": {
+      "type": "object",
+      "properties": {
+        "metric": { "type": "string", "description": "e.g. cer, wer, exact_match_rate, hallucination_rate." },
+        "baseline": { "type": "number" },
+        "candidate": { "type": "number" },
+        "delta": { "type": "number", "description": "candidate - baseline. Sign alone is never the reader's only cue — see direction." },
+        "direction": {
+          "enum": ["better", "worse", "unchanged"],
+          "description": "Stated as a word because the sign that means 'better' differs per metric: lower is better for CER, higher for exact_match_rate."
+        }
+      },
+      "required": ["metric", "baseline", "candidate", "delta", "direction"],
+      "additionalProperties": false
+    },
+    "pageDelta": {
+      "type": "object",
+      "properties": {
+        "page_id": { "type": "string" },
+        "split": { "type": "string" },
+        "baseline_cer": { "type": "number", "minimum": 0 },
+        "candidate_cer": { "type": "number", "minimum": 0 },
+        "delta_cer": { "type": "number" },
+        "outcome_changed": {
+          "type": ["string", "null"],
+          "description": "e.g. 'scored -> hallucination'. null when the contract outcome is the same on both sides."
+        }
+      },
+      "required": ["page_id", "split", "baseline_cer", "candidate_cer", "delta_cer", "outcome_changed"],
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "baseline_run_id": { "type": "string" },
+    "candidate_run_id": { "type": "string" },
+    "baseline_model_version": { "type": "string" },
+    "candidate_model_version": { "type": "string" },
+    "policy_version": { "type": "string", "description": "Identical in both runs, or the comparison does not exist." },
+    "tool_version": { "type": "string" },
+    "primary_split": { "type": "string", "description": "The split the PROMOTE rule reads. Default synthetic_heldout." },
+    "verdict": {
+      "enum": ["PROMOTE", "REJECT", "INCONCLUSIVE"],
+      "description": "A REJECT is a successful comparison, not a failed command: the process still exits 0 and scripts read the verdict from here, not from the exit code."
+    },
+    "verdict_reasons": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" },
+      "description": "Every rule that fired, in rule order. Never empty — an INCONCLUSIVE verdict states why it is inconclusive, so a reviewer can act without opening the underlying data (SC-006)."
+    },
+    "thresholds": {
+      "type": "object",
+      "description": "The rule as applied, echoed so the verdict is reconstructable later.",
+      "properties": {
+        "promote_min_cer_improvement_pp": { "type": "number", "description": "Default 0.5 percentage points absolute, strict micro CER on the primary split." },
+        "reject_on_any_gold_regression": { "type": "boolean", "description": "Default true. Encodes the project's real risk: synthetic gains that do not survive real scans." },
+        "reject_hallucination_worsening_pp": { "type": "number", "description": "Default 1.0 percentage point." },
+        "reject_false_refusal_worsening_pp": { "type": "number", "description": "Default 1.0 percentage point." }
+      },
+      "required": ["promote_min_cer_improvement_pp", "reject_on_any_gold_regression", "reject_hallucination_worsening_pp", "reject_false_refusal_worsening_pp"],
+      "additionalProperties": false
+    },
+    "splits": {
+      "type": "array",
+      "description": "Per split, every headline metric on both sides with its delta and direction. Sorted by split name. No cross-split total, for the same reason as in run-summary (FR-013). metrics contains only those metrics defined on BOTH sides: a split whose scored_pages is 0 has a null headline in run-summary (research R-018) and so contributes only its contract rates here, never a delta computed from a null. Whether a split is scoreable is a property of the corpus rather than of the model, and the two runs are already guaranteed the same corpus and the same page set, so scored_pages always agrees between them and a metric is never present on one side alone.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "split": { "type": "string" },
+          "pages": { "type": "integer", "minimum": 0 },
+          "metrics": { "type": "array", "items": { "$ref": "#/$defs/metricDelta" } }
+        },
+        "required": ["split", "pages", "metrics"],
+        "additionalProperties": false
+      }
+    },
+    "bootstrap": {
+      "type": "array",
+      "description": "Paired bootstrap over per-page CER deltas, so a 0.4-point improvement that straddles zero is visibly not a result. Deterministic: fixed seed, recorded.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "split": { "type": "string" },
+          "delta_cer": { "type": "number" },
+          "ci_low": { "type": "number" },
+          "ci_high": { "type": "number" },
+          "confidence": { "type": "number", "const": 0.95, "description": "Fixed at 95%. Pinned because nothing in configs/eval/default.json can change it." },
+          "resamples": { "type": "integer", "minimum": 1, "description": "Echoed from config key bootstrap_resamples, default 10000. Deliberately not pinned to a const: the config is tunable and every threshold in force is echoed into the artifact, so a const would make any non-default run fail its own schema." },
+          "seed": { "type": "integer", "description": "Echoed from config key bootstrap_seed, default 20260916. Not pinned, for the same reason as resamples. Its presence is what makes the interval reproducible; its value is a choice, not a constant." }
+        },
+        "required": ["split", "delta_cer", "ci_low", "ci_high", "confidence", "resamples", "seed"],
+        "additionalProperties": false
+      }
+    },
+    "regressions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/pageDelta" },
+      "description": "Pages that got worse, sorted by delta_cer descending then page_id (FR-008 scenario 2). Truncated to --top."
+    },
+    "improvements": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/pageDelta" },
+      "description": "Pages that got better, sorted by delta_cer ascending then page_id. Truncated to --top."
+    },
+    "regression_count": { "type": "integer", "minimum": 0, "description": "Total before truncation." },
+    "improvement_count": { "type": "integer", "minimum": 0, "description": "Total before truncation." },
+    "only_in_baseline": {
+      "type": "array",
+      "items": { "type": "string" },
+      "maxItems": 0,
+      "description": "Page ids present in the baseline run only. Always empty in a produced artifact: an unequal page set is the fourth incommensurability condition, so the command names the offending ids on stderr and exits 3 instead of writing this file (research R-004). Kept as a required, always-empty field so a consumer can assert emptiness rather than infer it."
+    },
+    "only_in_candidate": {
+      "type": "array",
+      "items": { "type": "string" },
+      "maxItems": 0,
+      "description": "As above, for the candidate run."
+    }
+  },
+  "required": [
+    "baseline_run_id",
+    "candidate_run_id",
+    "baseline_model_version",
+    "candidate_model_version",
+    "policy_version",
+    "tool_version",
+    "primary_split",
+    "verdict",
+    "verdict_reasons",
+    "thresholds",
+    "splits",
+    "bootstrap",
+    "regressions",
+    "improvements",
+    "regression_count",
+    "improvement_count",
+    "only_in_baseline",
+    "only_in_candidate"
+  ],
+  "additionalProperties": false,
+  "examples": [
+    {
+      "baseline_run_id": "base-untrained",
+      "candidate_run_id": "ft-v003-step4000",
+      "baseline_model_version": "Qwen3.5-VL-base",
+      "candidate_model_version": "qwen35-ocr-ft-v003-step4000",
+      "policy_version": "1.0",
+      "tool_version": "0.1.0",
+      "primary_split": "synthetic_heldout",
+      "verdict": "REJECT",
+      "verdict_reasons": [
+        "strict micro CER on synthetic_heldout improved by 6.20pp (>= 0.50pp required for PROMOTE)",
+        "REJECT: hallucination rate worsened by 3.40pp (limit 1.00pp)"
+      ],
+      "thresholds": {
+        "promote_min_cer_improvement_pp": 0.5,
+        "reject_on_any_gold_regression": true,
+        "reject_hallucination_worsening_pp": 1.0,
+        "reject_false_refusal_worsening_pp": 1.0
+      },
+      "splits": [],
+      "bootstrap": [],
+      "regressions": [],
+      "improvements": [],
+      "regression_count": 41,
+      "improvement_count": 863,
+      "only_in_baseline": [],
+      "only_in_candidate": []
+    }
+  ]
+}

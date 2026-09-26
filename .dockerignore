@@ -1,0 +1,39 @@
+# Keep the build context small and credential-free. build_and_push.sh scans the
+# context for credential-shaped strings and refuses the build if it finds any;
+# the less that goes in, the less there is to scan and to leak into a layer.
+
+.git/
+.gitignore
+.gitattributes
+.dockerignore
+
+# Spec Kit artifacts and agent config are design material, not software.
+.specify/
+.claude/
+.vscode/
+specs/
+
+# Generated: never belongs in an image (constitution V).
+runs/
+output/
+checkpoints/
+tmp/
+*.log
+
+# Python build and test artifacts.
+__pycache__/
+*.pyc
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+
+# Anything credential-shaped, restated here so an accidental file never reaches
+# the context in the first place.
+.env
+credentials*
+secrets*
+*.key
+*.crt

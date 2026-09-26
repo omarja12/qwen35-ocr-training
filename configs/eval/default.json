@@ -1,0 +1,15 @@
+{
+  "bootstrap_resamples": 10000,
+  "bootstrap_seed": 20260916,
+  "line_match_min_similarity": 0.5,
+  "min_pages_per_breakdown_row": 5,
+  "promote_min_cer_improvement_pp": 0.5,
+  "reject_false_refusal_worsening_pp": 1.0,
+  "reject_hallucination_worsening_pp": 1.0,
+  "reject_on_any_gold_regression": true,
+  "repetition_min_char_share": 0.3,
+  "repetition_min_line_len": 10,
+  "repetition_min_occurrences": 5,
+  "runaway_length_ratio": 2.0,
+  "runaway_min_char_excess": 100
+}

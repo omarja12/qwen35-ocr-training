@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ocr-eval/contracts/run-summary.schema.json",
+  "title": "Run summary",
+  "description": "runs/<run_id>/summary.json. Aggregate outcomes per split, plus breakdowns. There is deliberately NO cross-split total key anywhere in this schema: FR-013 forbids merging real scans with synthetic pages into one headline, and the strongest form of that guarantee is that the merged number does not exist to be quoted.",
+  "type": "object",
+  "$defs": {
+    "microMacro": {
+      "type": "object",
+      "properties": {
+        "micro": { "type": "number", "minimum": 0, "description": "sum(edits) / sum(denominator) across pages. The corpus-level truth, and the headline form." },
+        "macro": { "type": "number", "minimum": 0, "description": "Mean of per-page rates. Dominated by short pages; reveals failures clustering on them." }
+      },
+      "required": ["micro", "macro"],
+      "additionalProperties": false
+    },
+    "breakdownRow": {
+      "type": "object",
+      "properties": {
+        "key": { "type": "string", "description": "The font, distortion or source name. The literal key __sparse__ collects all categories with fewer than min_pages_per_breakdown_row pages." },
+        "pages": { "type": "integer", "minimum": 1 },
+        "cer_micro": { "type": "number", "minimum": 0 },
+        "cer_macro": { "type": "number", "minimum": 0 },
+        "wer_micro": { "type": "number", "minimum": 0 },
+        "exact_match_rate": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "required": ["key", "pages", "cer_micro", "cer_macro", "wer_micro", "exact_match_rate"],
+      "additionalProperties": false
+    },
+    "breakdown": {
+      "type": "object",
+      "properties": {
+        "dimension": { "enum": ["font", "distortion", "source"] },
+        "is_partition": {
+          "type": "boolean",
+          "description": "False for font and distortion: a page with two fonts contributes to both rows, so row page counts sum to more than the split total. Labelled explicitly so nobody reads the table as a partition."
+        },
+        "rows": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/breakdownRow" },
+          "description": "Sorted by cer_micro descending, ties broken by key ascending. The worst-performing category is therefore the first row and needs no further analysis (FR-007, SC-005)."
+        }
+      },
+      "required": ["dimension", "is_partition", "rows"],
+      "additionalProperties": false
+    },
+    "splitSummary": {
+      "type": "object",
+      "$comment": "A split with scored_pages == 0 — a probe-only split is the case that occurs in practice — has no CER/WER/exact-match denominator at all, because probe pages are excluded from those aggregates entirely (research R-008). headline, metrics and order.order_corrected_cer_micro are therefore null in exactly that case and never otherwise. null, not 0: a zero here would read as a perfect score on the split that contains no scoreable page, which is the silent-default failure constitution principle IV forbids (research R-018).",
+      "properties": {
+        "split": { "type": "string" },
+        "pages": { "type": "integer", "minimum": 0 },
+        "scored_pages": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Pages contributing to the CER/WER/exact-match aggregates — outcome scored or false_refusal. Excludes correct_refusal and hallucination, which carry no metrics. Published so the denominator behind every rate on this split is visible, and so a null headline is self-explaining rather than mysterious."
+        },
+        "headline": {
+          "type": ["object", "null"],
+          "description": "Strict-level micro metrics. The figure quoted whenever a single number is quoted (FR-003a). Never absent, never nested below another level (SC-004). null only when scored_pages == 0.",
+          "properties": {
+            "level": { "const": "strict" },
+            "cer": { "type": "number", "minimum": 0 },
+            "wer": { "type": "number", "minimum": 0 },
+            "exact_match_rate": { "type": "number", "minimum": 0, "maximum": 1 }
+          },
+          "required": ["level", "cer", "wer", "exact_match_rate"],
+          "additionalProperties": false
+        },
+        "metrics": {
+          "type": ["object", "null"],
+          "description": "All three normalisation levels, each micro and macro. Every report shows all three together (SC-004). null only when scored_pages == 0, and then headline is null too — the two are never null independently.",
+          "properties": {
+            "strict": { "$ref": "#/$defs/levelAggregate" },
+            "diacritic_insensitive": { "$ref": "#/$defs/levelAggregate" },
+            "skeleton": { "$ref": "#/$defs/levelAggregate" }
+          },
+          "required": ["strict", "diacritic_insensitive", "skeleton"],
+          "additionalProperties": false
+        },
+        "order": {
+          "type": "object",
+          "description": "Together with headline.cer these let a reader tell a model that cannot recognise text from one that recognises it and orders it wrongly (FR-012a, SC-004a). The object itself is always present; its CER is null when there is nothing to score.",
+          "properties": {
+            "order_corrected_cer_micro": { "type": ["number", "null"], "minimum": 0, "description": "null when scored_pages == 0, for the same reason headline is." },
+            "reading_order_accuracy": { "type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "Micro over all matched line pairs in the split. null when no page in the split had an order signal." },
+            "pages_without_order_signal": { "type": "integer", "minimum": 0 }
+          },
+          "required": ["order_corrected_cer_micro", "reading_order_accuracy", "pages_without_order_signal"],
+          "additionalProperties": false
+        },
+        "contract": {
+          "type": "object",
+          "description": "The [UNREADABLE] contract (FR-010, SC-007). Hallucination and false refusal are separate counts and separate rates; they are never summed.",
+          "properties": {
+            "correct_refusal": { "type": "integer", "minimum": 0 },
+            "hallucination": { "type": "integer", "minimum": 0 },
+            "false_refusal": { "type": "integer", "minimum": 0 },
+            "legible_pages": { "type": "integer", "minimum": 0 },
+            "probe_pages": { "type": "integer", "minimum": 0 },
+            "hallucination_rate": { "type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "hallucination / probe_pages. null when the split contains no probe pages." },
+            "false_refusal_rate": { "type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "false_refusal / legible_pages. null when the split contains no legible pages." }
+          },
+          "required": ["correct_refusal", "hallucination", "false_refusal", "legible_pages", "probe_pages", "hallucination_rate", "false_refusal_rate"],
+          "additionalProperties": false
+        },
+        "flags": {
+          "type": "object",
+          "description": "Count per flag name (FR-011).",
+          "properties": {
+            "runaway_length": { "type": "integer", "minimum": 0 },
+            "repetition": { "type": "integer", "minimum": 0 },
+            "empty_prediction": { "type": "integer", "minimum": 0 }
+          },
+          "required": ["runaway_length", "repetition", "empty_prediction"],
+          "additionalProperties": false
+        },
+        "breakdowns": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/breakdown" },
+          "description": "Empty when scored_pages == 0: every breakdown row carries a cer_micro, so there is nothing to rank on a split with no scoreable page."
+        }
+      },
+      "required": ["split", "pages", "scored_pages", "headline", "metrics", "order", "contract", "flags", "breakdowns"],
+      "additionalProperties": false
+    },
+    "levelAggregate": {
+      "type": "object",
+      "properties": {
+        "cer": { "$ref": "#/$defs/microMacro" },
+        "wer": { "$ref": "#/$defs/microMacro" },
+        "exact_match_rate": { "type": "number", "minimum": 0, "maximum": 1, "description": "A page count ratio; it has only one form." }
+      },
+      "required": ["cer", "wer", "exact_match_rate"],
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "run_id": { "type": "string", "minLength": 1 },
+    "model_version": { "type": "string", "minLength": 1 },
+    "tool_version": { "type": "string", "minLength": 1 },
+    "policy": {
+      "type": "object",
+      "description": "Embedded whole, not referenced, so the summary stands alone six months later (FR-004, SC-008).",
+      "properties": {
+        "policy_version": { "type": "string" },
+        "levels": { "type": "array", "items": { "type": "string" } },
+        "headline_level": { "const": "strict" },
+        "trailing_newline_stripped": { "type": "boolean" },
+        "unreadable_marker": { "type": "string" }
+      },
+      "required": ["policy_version", "levels", "headline_level", "trailing_newline_stripped", "unreadable_marker"],
+      "additionalProperties": false
+    },
+    "splits": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/splitSummary" },
+      "description": "Sorted by split name."
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Verbatim caveats. When no gold_scans split is present the summary carries the note that measurement is synthetic-only and overstates real-world quality."
+    }
+  },
+  "required": ["run_id", "model_version", "tool_version", "policy", "splits", "notes"],
+  "additionalProperties": false
+}

@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ocr-eval/contracts/corpus-manifest.schema.json",
+  "title": "Corpus manifest row",
+  "description": "One line of the corpus manifest JSONL. One row per reference page. The file as a whole must have unique page_id values; that constraint is enforced by the reader, not by this schema.",
+  "type": "object",
+  "properties": {
+    "page_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique across the manifest and stable across corpus rebuilds. The join key for every artifact and every comparison."
+    },
+    "split": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Headline metrics are reported per split and never merged across splits (FR-013). Conventional values: synthetic_heldout, gold_scans, probe."
+    },
+    "kind": {
+      "enum": ["synthetic", "scan", "probe"],
+      "description": "Drives the scoring path. probe pages are scored only under the [UNREADABLE] contract and are excluded from CER/WER/exact-match aggregates."
+    },
+    "reference_text": {
+      "type": "string",
+      "description": "Inline ground truth. Exactly one of reference_text or reference_path must be present."
+    },
+    "reference_path": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Path to a UTF-8 text file, relative to --corpus-root. Exactly one of reference_text or reference_path must be present."
+    },
+    "image_path": {
+      "type": "string",
+      "description": "Recorded for provenance and for the worst-pages report. Never read during scoring."
+    },
+    "fonts": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Fonts used to render the page; empty for real scans. Drives the font breakdown (FR-006). Sorted at read time so breakdown keys do not depend on authoring order.",
+      "default": []
+    },
+    "distortions": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Degradations applied to the page; empty for originals. Sorted at read time.",
+      "default": []
+    },
+    "source": {
+      "type": "string",
+      "description": "Source document the page came from."
+    },
+    "is_augmented": {
+      "type": "boolean",
+      "default": false,
+      "description": "True for a variant derived from an original page, so originals can be evaluated alone."
+    }
+  },
+  "required": ["page_id", "split", "kind"],
+  "additionalProperties": false,
+  "oneOf": [
+    { "required": ["reference_text"], "not": { "required": ["reference_path"] } },
+    { "required": ["reference_path"], "not": { "required": ["reference_text"] } }
+  ],
+  "$comment": "Invariants enforced by the reader and not expressible here: page_id unique across the file; kind=probe implies the reference is exactly '[UNREADABLE]'; kind!=probe implies the reference is non-empty and not whitespace-only; every page in scope has exactly one prediction. Each violation is a hard failure that stops the run with exit code 1 (FR-016).",
+  "examples": [
+    {
+      "page_id": "syn_000142",
+      "split": "synthetic_heldout",
+      "kind": "synthetic",
+      "reference_path": "refs/syn_000142.txt",
+      "image_path": "images/syn_000142.png",
+      "fonts": ["Amiri"],
+      "distortions": [],
+      "source": "wikipedia_ar",
+      "is_augmented": false
+    },
+    {
+      "page_id": "syn_000142_blur2",
+      "split": "synthetic_heldout",
+      "kind": "synthetic",
+      "reference_path": "refs/syn_000142.txt",
+      "fonts": ["Amiri"],
+      "distortions": ["gaussian_blur", "jpeg_artifact"],
+      "source": "wikipedia_ar",
+      "is_augmented": true
+    },
+    {
+      "page_id": "probe_blank_007",
+      "split": "probe",
+      "kind": "probe",
+      "reference_text": "[UNREADABLE]",
+      "image_path": "images/probe_blank_007.png",
+      "fonts": [],
+      "distortions": [],
+      "source": "synthetic_blank"
+    }
+  ]
+}

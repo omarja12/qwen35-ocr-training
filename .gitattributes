@@ -1,0 +1,25 @@
+# Line endings are part of this repository's contract, not a preference.
+#
+# io/writer.py emits LF and SC-003 requires two runs over identical inputs to
+# produce byte-identical files. With core.autocrlf=true and no rules here, a
+# checkout on Windows rewrites every committed text file to CRLF, which would:
+#
+#   - break tests/golden/expected/ — the golden artifacts would arrive CRLF
+#     while the writer emits LF, so test_byte_identity.py fails on Windows and
+#     passes on Linux;
+#   - silently change every number in the suite — tests/fixtures/mini_corpus/
+#     references would gain a \r on each line, and R-002 strips only one
+#     trailing newline, so CER and WER would differ by platform.
+#
+# plan.md targets Linux and Windows both, so the working tree is pinned to LF
+# everywhere rather than left to each developer's git config.
+
+* text=auto eol=lf
+
+# Belt and braces for the files where a stray \r changes a reported number.
+*.json   text eol=lf
+*.jsonl  text eol=lf
+*.txt    text eol=lf
+*.md     text eol=lf
+*.py     text eol=lf
+*.sh     text eol=lf

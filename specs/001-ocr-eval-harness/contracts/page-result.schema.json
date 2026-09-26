@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ocr-eval/contracts/page-result.schema.json",
+  "title": "Page result",
+  "description": "One line of runs/<run_id>/pages.jsonl. Rows are sorted by page_id in codepoint order, independent of the order work completed (SC-003).",
+  "type": "object",
+  "$defs": {
+    "levelMetrics": {
+      "type": "object",
+      "description": "Metrics at one normalisation level. Edit counts and denominators are kept so that corpus aggregation is a sum, never an average of averages. Neither denominator can be zero, and that is a guarantee made upstream by validate, not a hope: see the minimums below.",
+      "properties": {
+        "cer": { "type": "number", "minimum": 0, "description": "char_edits / ref_chars. Unbounded above: a runaway prediction can exceed 1." },
+        "wer": { "type": "number", "minimum": 0, "description": "word_edits / ref_words." },
+        "exact_match": { "type": "boolean" },
+        "char_edits": { "type": "integer", "minimum": 0 },
+        "ref_chars": { "type": "integer", "minimum": 1, "description": "Never 0. validate rejects any non-probe reference that normalises to empty at ANY of the three levels — a reference of nothing but punctuation empties at skeleton, one of nothing but diacritics empties at diacritic_insensitive — so no CER denominator can be zero (research R-009)." },
+        "word_edits": { "type": "integer", "minimum": 0 },
+        "ref_words": { "type": "integer", "minimum": 1, "description": "Never 0, and this follows from ref_chars: tokens are runs of non-whitespace after normalisation, so a normalised reference that is non-empty contains at least one token. The same upstream check protects both denominators." }
+      },
+      "required": ["cer", "wer", "exact_match", "char_edits", "ref_chars", "word_edits", "ref_words"],
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "page_id": { "type": "string", "minLength": 1 },
+    "split": { "type": "string", "minLength": 1 },
+    "kind": { "enum": ["synthetic", "scan", "probe"] },
+    "fonts": { "type": "array", "items": { "type": "string" } },
+    "distortions": { "type": "array", "items": { "type": "string" } },
+    "source": { "type": ["string", "null"] },
+    "is_augmented": { "type": "boolean" },
+    "outcome": {
+      "enum": ["scored", "correct_refusal", "hallucination", "false_refusal"],
+      "description": "The [UNREADABLE] contract classification (FR-010). correct_refusal and hallucination are probe pages and carry no metrics. false_refusal is a legible page transcribed as the marker: it carries metrics AND is counted separately."
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Absent when outcome is correct_refusal or hallucination — a probe page has no reference text to measure distance against.",
+      "properties": {
+        "strict": { "$ref": "#/$defs/levelMetrics" },
+        "diacritic_insensitive": { "$ref": "#/$defs/levelMetrics" },
+        "skeleton": { "$ref": "#/$defs/levelMetrics" }
+      },
+      "required": ["strict", "diacritic_insensitive", "skeleton"],
+      "additionalProperties": false
+    },
+    "order": {
+      "type": "object",
+      "description": "Reading-order measurements (FR-012). Computed at strict level over non-empty lines, matched on skeleton similarity.",
+      "properties": {
+        "order_corrected_cer": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Strict CER after matched prediction lines are re-emitted in reference order. Recognition quality with sequencing removed."
+        },
+        "reading_order_accuracy": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Fraction of matched line pairs whose relative order agrees between reference and prediction. null — never 1.0 — when fewer than two lines matched, and excluded from the aggregate in that case."
+        },
+        "matched_lines": { "type": "integer", "minimum": 0 },
+        "ref_lines": { "type": "integer", "minimum": 0 },
+        "pred_lines": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["order_corrected_cer", "reading_order_accuracy", "matched_lines", "ref_lines", "pred_lines"],
+      "additionalProperties": false
+    },
+    "flags": {
+      "type": "array",
+      "description": "Sorted. Flagged pages stay in the aggregate; the flag tells a reader where an error rate came from (FR-011).",
+      "items": { "enum": ["runaway_length", "repetition", "empty_prediction"] },
+      "uniqueItems": true
+    },
+    "length_ratio": {
+      "type": "number",
+      "minimum": 0,
+      "description": "len(prediction) / max(len(reference), 1) at strict level."
+    }
+  },
+  "required": ["page_id", "split", "kind", "outcome", "flags", "length_ratio"],
+  "additionalProperties": false,
+  "$comment": "All floats are serialised at 6 decimal places through one shared helper, so two runs on identical inputs produce byte-identical files (SC-003).",
+  "examples": [
+    {
+      "page_id": "syn_000142",
+      "split": "synthetic_heldout",
+      "kind": "synthetic",
+      "fonts": ["Amiri"],
+      "distortions": [],
+      "source": "wikipedia_ar",
+      "is_augmented": false,
+      "outcome": "scored",
+      "metrics": {
+        "strict": { "cer": 0.083333, "wer": 0.214286, "exact_match": false, "char_edits": 24, "ref_chars": 288, "word_edits": 9, "ref_words": 42 },
+        "diacritic_insensitive": { "cer": 0.021739, "wer": 0.071429, "exact_match": false, "char_edits": 5, "ref_chars": 230, "word_edits": 3, "ref_words": 42 },
+        "skeleton": { "cer": 0.008850, "wer": 0.047619, "exact_match": false, "char_edits": 2, "ref_chars": 226, "word_edits": 2, "ref_words": 42 }
+      },
+      "order": {
+        "order_corrected_cer": 0.079861,
+        "reading_order_accuracy": 1.0,
+        "matched_lines": 12,
+        "ref_lines": 12,
+        "pred_lines": 12
+      },
+      "flags": [],
+      "length_ratio": 1.013889
+    },
+    {
+      "page_id": "probe_blank_007",
+      "split": "probe",
+      "kind": "probe",
+      "fonts": [],
+      "distortions": [],
+      "source": "synthetic_blank",
+      "is_augmented": false,
+      "outcome": "hallucination",
+      "flags": [],
+      "length_ratio": 14.5
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+# Starting point only — NOT the lock file.
+#
+# Build once, confirm every import works on an H200 pod, then freeze:
+#     pip freeze | sort > requirements.lock.txt
+# and switch the Containerfile to install from the lock file.
+# Air-gapped clusters need reproducible builds; unpinned installs are not.
+
+# --- core training stack ---------------------------------------------------
+# Leave torch/torchvision unlisted if the base image already ships a CUDA
+# build of them. Reinstalling torch on top of a vendor image is a common way
+# to end up with a CUDA/driver mismatch that only fails at run time.
+transformers
+ms-swift
+qwen_vl_utils
+peft
+deepspeed
+accelerate
+
+# --- data ------------------------------------------------------------------
+datasets
+huggingface_hub
+safetensors
+webdataset
+pyarrow
+pillow
+
+# --- object storage --------------------------------------------------------
+boto3
+s3fs
+
+# --- metrics and logging ---------------------------------------------------
+tensorboard
+jiwer          # CER / WER
+
+# --- optional acceleration -------------------------------------------------
+# Add ONLY after the plain image trains successfully. These compile against
+# CUDA and are the most common cause of air-gapped build failures.
+# liger-kernel
+# flash-linear-attention
+# causal-conv1d

@@ -1,0 +1,50 @@
+Loading stand-in model: hf-tiny-v2/tiny-random-Qwen3_5ForConditionalGeneration
+Loading weights:   0%|          | 0/51 [00:00<?, ?it/s]Loading weights: 100%|##########| 51/51 [00:00<00:00, 14652.34it/s]
+[transformers] [1mQwen3_5ForConditionalGeneration LOAD REPORT[0m from: hf-tiny-v2/tiny-random-Qwen3_5ForConditionalGeneration
+Key                                                          | Status     | 
+-------------------------------------------------------------+------------+-
+model.language_model.layers.1.linear_attn.norm.weight        | UNEXPECTED | 
+model.language_model.layers.1.linear_attn.dt_bias            | UNEXPECTED | 
+model.language_model.layers.1.linear_attn.out_proj.weight    | UNEXPECTED | 
+model.language_model.layers.1.linear_attn.conv1d.weight      | UNEXPECTED | 
+model.language_model.layers.1.linear_attn.in_proj_z.weight   | UNEXPECTED | 
+model.language_model.layers.1.linear_attn.A_log              | UNEXPECTED | 
+model.language_model.layers.1.linear_attn.in_proj_a.weight   | UNEXPECTED | 
+model.language_model.layers.1.linear_attn.in_proj_qkv.weight | UNEXPECTED | 
+model.language_model.layers.1.linear_attn.in_proj_b.weight   | UNEXPECTED | 
+model.language_model.layers.1.self_attn.k_norm.weight        | MISSING    | 
+model.language_model.layers.1.self_attn.k_proj.weight        | MISSING    | 
+model.language_model.layers.1.self_attn.q_norm.weight        | MISSING    | 
+model.language_model.layers.1.self_attn.o_proj.weight        | MISSING    | 
+model.language_model.layers.1.self_attn.q_proj.weight        | MISSING    | 
+model.language_model.layers.1.self_attn.v_proj.weight        | MISSING    | 
+
+Notes:
+- UNEXPECTED:	can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING:	those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+  parameters: 8,018,752
+  image_token_id from config: 3  <- WRONG, this test fixture's own tokenizer says 248056
+
+Real sample: image (70, 113), transcription 150 chars
+
+=== THE IMAGE TOKEN EXPANSION, LIVE ===
+<|image_pad|> tokens actually present in input_ids: 77
+(this is the real expansion step that failed in yesterday's run -
+ here it runs for real, inside the model's own processor)
+
+=== FULL SEQUENCE ===
+total tokens: 152
+masked (-100): 103  (image tokens + prompt instruction)
+trained on: 49  (the OCR transcription)
+
+=== REAL FORWARD + BACKWARD PASS, tiny-random-Qwen3_5ForConditionalGeneration ===
+  step 0: loss = 12.4292
+  step 1: loss = 12.3880
+  step 2: loss = 12.3464
+  step 3: loss = 12.3036
+  step 4: loss = 12.2590
+
+That loss number is the real cross-entropy computed by this
+model's real forward() over the real masked labels built above.
+Swap MODEL_ID for Qwen/Qwen3.5-9B-Base + a GPU to scale this up -
+same script, same mechanism, real weights.
