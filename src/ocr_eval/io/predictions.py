@@ -32,9 +32,6 @@ class PredictionSet:
     form: str = ""
     digest: str = ""
 
-    def get(self, page_id: str) -> str | None:
-        return self.texts.get(page_id)
-
 
 def _digest(texts: dict[str, str]) -> str:
     """SHA-256 over sorted page_id + text.

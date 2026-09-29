@@ -29,10 +29,6 @@ class Interval:
     resamples: int
     seed: int
 
-    @property
-    def straddles_zero(self) -> bool:
-        return self.ci_low <= 0.0 <= self.ci_high
-
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
 

@@ -150,7 +150,7 @@ def validate(
         result.references[page.page_id] = reference
         _check_reference_content(page, reference, result.problems)
 
-        if predictions.get(page.page_id) is None:
+        if page.page_id not in predictions.texts:
             result.problems.append(
                 f"{page.page_id}: in the manifest but has no prediction. "
                 "Reported as a gap, never scored as perfect or as zero"

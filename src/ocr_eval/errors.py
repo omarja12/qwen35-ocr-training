@@ -54,8 +54,6 @@ class OcrEvalError(Exception):
 class InputIntegrityError(OcrEvalError):
     """Malformed, missing or mismatched input. Never scored, never imputed."""
 
-    exit_code = EXIT_INPUT_INTEGRITY
-
 
 class UsageError(OcrEvalError):
     """Bad flags, unreadable path, missing required argument."""

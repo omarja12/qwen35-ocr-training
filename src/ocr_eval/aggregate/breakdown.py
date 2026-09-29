@@ -15,25 +15,11 @@ from typing import Iterable, Sequence
 
 from ocr_eval.metrics.rates import aggregate_level
 from ocr_eval.score.page import PageResult
+from ocr_eval.score.subset import _page_values
 
 DIMENSIONS = ("font", "distortion", "source")
 
 SPARSE_KEY = "__sparse__"
-
-# Which page attribute backs each dimension, and whether it is list-valued.
-_SOURCES: dict[str, tuple[str, bool]] = {
-    "font": ("fonts", True),
-    "distortion": ("distortions", True),
-    "source": ("source", False),
-}
-
-
-def _keys_for(result: PageResult, dimension: str) -> list[str]:
-    attribute, is_list = _SOURCES[dimension]
-    value = getattr(result, attribute)
-    if is_list:
-        return list(value)
-    return [] if value is None else [str(value)]
 
 
 def _row(key: str, results: Sequence[PageResult]) -> dict[str, object]:
@@ -60,7 +46,7 @@ def build(
     contributions = 0
     pages_with_a_key = 0
     for result in scored:
-        keys = _keys_for(result, dimension)
+        keys = _page_values(result, dimension)
         if keys:
             pages_with_a_key += 1
         for key in keys:

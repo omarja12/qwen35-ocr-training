@@ -10,7 +10,6 @@ how to read an image. This proves the pipeline; the real Qwen3.5-9B needs the GP
 
     python fetch_hf_samples.py --n 1000            # once; needs HF_TOKEN (gated dataset)
     python train_local.py                          # full run
-    python train_local.py --steps 5                # quick timing check
 """
 
 import argparse
@@ -43,13 +42,12 @@ EVAL_EVERY = 100
 MAX_TOKENS = 300  # ponytail: RAM cap for an 8 GB laptop (logits scale with the 248K vocab); raise on a real machine
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--steps", type=int, default=None, help="stop early (timing check)")
 parser.add_argument("--epochs", type=int, default=1, help="passes over the training pages")
 args = parser.parse_args()
 
 stems = sorted(p.with_suffix("") for p in DATA.glob("*.json"))
 random.Random(SEED).shuffle(stems)
-val_stems, train_stems = stems[:N_VAL], stems[N_VAL:][: args.steps]
+val_stems, train_stems = stems[:N_VAL], stems[N_VAL:]
 assert val_stems and train_stems, f"no samples in {DATA} - run fetch_hf_samples.py"
 
 torch.manual_seed(SEED)

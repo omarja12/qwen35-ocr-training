@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import json
 import os
-import stat
 import sys
 from pathlib import Path
 from typing import Any, Iterable
@@ -158,8 +157,3 @@ def read_text(path: str | Path) -> str:
     if text.endswith("\n"):
         return text[:-1]
     return text
-
-
-def is_group_writable(path: str | Path) -> bool:
-    """True when the group-write bit is set. Used by the R-017 test."""
-    return bool(Path(path).stat().st_mode & stat.S_IWGRP)

@@ -18,34 +18,13 @@ actually changes.
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
+from ocr_eval.compare.diff import load_run
 from ocr_eval.errors import EXIT_OK, UsageError
 from ocr_eval.io import writer
 from ocr_eval.report import markdown as markdown_module
-
-
-def _load(run_dir: Path) -> tuple[dict, list[dict]]:
-    if not run_dir.is_dir():
-        raise UsageError(f"not a run directory: {run_dir}")
-
-    summary_file = run_dir / "summary.json"
-    pages_file = run_dir / "pages.jsonl"
-    for required in (summary_file, pages_file):
-        if not required.exists():
-            raise UsageError(
-                f"{run_dir} is not a run directory: {required.name} is missing"
-            )
-
-    summary = json.loads(summary_file.read_text(encoding="utf-8"))
-    pages = [
-        json.loads(line)
-        for line in pages_file.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
-    return summary, pages
 
 
 def rank_rows(pages: list[dict], limit: int, split: str | None = None) -> list[dict]:
@@ -98,8 +77,8 @@ def render_report(
     fmt: str = "md",
     out: str | Path | None = None,
 ) -> int:
-    run_path = Path(run_dir)
-    summary, pages = _load(run_path)
+    run = load_run(run_dir)
+    summary, pages = run.summary, list(run.pages.values())
 
     if split and not any(s["split"] == split for s in summary["splits"]):
         available = ", ".join(sorted(s["split"] for s in summary["splits"]))

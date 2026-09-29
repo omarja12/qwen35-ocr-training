@@ -117,7 +117,7 @@ def test_directories_are_group_writable(tmp_path):
 @POSIX_ONLY
 def test_files_are_group_writable(tmp_path):
     target = writer.write_text(tmp_path / "f.txt", "x")
-    assert writer.is_group_writable(target)
+    assert target.stat().st_mode & stat.S_IWGRP
 
 
 @POSIX_ONLY

@@ -65,7 +65,7 @@ def test_a_clear_improvement_does_not_straddle_zero():
     deltas = [-0.10] * 40
     interval = paired_bootstrap("s", deltas, RESAMPLES, SEED)
     assert interval.delta_cer == pytest.approx(-0.10)
-    assert not interval.straddles_zero
+    assert not interval.ci_low <= 0.0 <= interval.ci_high
     assert interval.ci_high < 0
 
 
@@ -73,7 +73,7 @@ def test_a_marginal_difference_straddles_zero_and_is_reported_as_such():
     """A 0.4-point improvement that straddles zero is visibly not a result."""
     deltas = [-0.05, 0.05, -0.04, 0.04, -0.06, 0.06, -0.004, 0.004] * 5
     interval = paired_bootstrap("s", deltas, RESAMPLES, SEED)
-    assert interval.straddles_zero
+    assert interval.ci_low <= 0.0 <= interval.ci_high
 
 
 def test_interval_brackets_the_observed_mean():

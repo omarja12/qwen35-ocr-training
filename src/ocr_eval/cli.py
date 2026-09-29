@@ -240,7 +240,3 @@ def main(argv: list[str] | None = None) -> int:
         return fail(UsageError(f"file not found: {exc.filename or exc}"))
     except BrokenPipeError:  # pragma: no cover - `| head` on the reader's side
         return EXIT_OK
-
-
-if __name__ == "__main__":  # pragma: no cover
-    sys.exit(main())
