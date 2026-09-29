@@ -337,7 +337,8 @@ def main(argv=None) -> int:
     out.mkdir(parents=True, exist_ok=True)
     (out / "parts").mkdir(exist_ok=True)
     (out / "eval").mkdir(exist_ok=True)
-    image_root = Path(args.image_root) if args.image_root else out.resolve()
+    # --image-root is a path inside the Linux pod, so it stays POSIX even when prepare runs on Windows.
+    image_root = PurePosixPath(args.image_root) if args.image_root else out.resolve()
     if not image_root.is_absolute():
         raise SystemExit(f"--image-root must be absolute, got {image_root}")
     holdout = {int(g) for g in args.holdout_groups.split(",") if g.strip()}
